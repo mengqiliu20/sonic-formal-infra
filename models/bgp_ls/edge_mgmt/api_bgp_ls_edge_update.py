@@ -31,6 +31,18 @@ from modeling_primitives import (
     uint32_t,
 )
 
+# COMMENTS: over the TED update -> bgpd processing -> bgp-ls propagation stages,
+# there are three levels of data types:
+# 1. Input format into bgpd
+# 2. bgpd internal representation of the TED topology graph and RIB entries
+# 3. BGP UPDATE message emitted to other nodes. Its NLRI and attribute encoding
+# is the data layout actually specified in the RFC protocol. Levels 1 and 2 are
+# implementation specific.
+#
+# Domain type definitions will be much cleaner if their top-level declarations
+# follow this hierarchy, while sub-fields can still share common type definitions,
+# e.g., NLRI.
+
 # ── Domain types ─────────────────────────────────────────────────────────────
 # Abstract types that capture key fields relevant to bgpd's handling of link
 # state edge updates.
@@ -93,6 +105,11 @@ class BgpRibEntry:
     """One entry in bgpd's RIB: a prefix, link topology, and the set of
     nexthops that reach the originating BGP peer."""
 
+    # COMMENTS: internal implementation details such as synth_prefix may be
+    # modeled at any proper abstraction level as we see fit. Its purpose is to
+    # identify links (same link -> same key) while leveraging the prefix-keyed
+    # RIB data structure. A straightforward choice would be to key directly by
+    # the NLRI tuple, instead of FRR's synthetic allocator id.
     synth_prefix: opaque_prefix_t
     ls_nlri: BLinkNlri
 
@@ -143,6 +160,8 @@ class BgpLsLinkState:
     """
 
     asn: uint32_t = uint32_t(1)  # arbitrary ASN for now
+    # COMMENTS: please double check if bgpd maintains its own TED and uses it for
+    # connectivity checks. If so, this is not a ghost state.
     ghost_ted: list[LinkStateEdge] = field(default_factory=list)
     rib: list[BgpRibEntry] = field(default_factory=list)
     next_id: opaque_prefix_t = opaque_prefix_t(0)
@@ -212,6 +231,7 @@ class BgpLsLinkState:
 
         # find and link reverse edge only if known event
         if (
+            # BUG: always True; should use 'and' here
             api.event != BEvent.SYNC
             or api.event != BEvent.ADD
             or api.event != BEvent.UPDATE
