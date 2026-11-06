@@ -1,0 +1,43 @@
+digraph single_originator {
+    graph [
+        rankdir=LR, bgcolor="white", pad=0.35, nodesep=0.65, ranksep=0.85,
+        fontname="Helvetica", fontsize=20, dpi=160,
+        label="Single BGP-LS originator", labelloc=t
+    ];
+    node [
+        shape=box, style="rounded,filled", fontname="Helvetica", fontsize=14,
+        margin="0.22,0.16", color="#497D8B", fillcolor="#EFF8F8",
+        fontcolor="#193344", penwidth=1.5
+    ];
+    edge [
+        dir=none, fontname="Helvetica", fontsize=12,
+        color="#497D8B", fontcolor="#193344", penwidth=1.8
+    ];
+
+    subgraph cluster_isis {
+        label="IS-IS Level 2";
+        fontsize=14;
+        fontcolor="#335C67";
+        color="#B9D7DC";
+        bgcolor="#FAFDFD";
+        style="rounded,dashed";
+        margin=24;
+
+        { rank=same; r2; r3; }
+        r2 [label="R2\nIS-IS"];
+        r3 [label="R3\nIS-IS"];
+        r4 [label="R4\nIS-IS"];
+        r5 [label="R5\nIS-IS + BGP-LS\nOriginator",
+            color="#315E9C", fillcolor="#EDF3FD"];
+
+        r3 -> r2 [xlabel="L1"];
+        r2 -> r4 [label="L2"];
+        r3 -> r4 [label="L3"];
+        r4 -> r5 [label="L4"];
+    }
+
+    c1 [label="C1\nBGP-LS consumer",
+        color="#A87024", fillcolor="#FFF6E8"];
+    r5 -> c1 [dir=forward, label="L5 / eBGP-LS\nTopology export to C1\nIS-IS disabled",
+        color="#A87024", fontcolor="#80531B", penwidth=2.2];
+}

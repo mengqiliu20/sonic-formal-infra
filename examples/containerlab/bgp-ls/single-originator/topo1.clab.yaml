@@ -1,0 +1,70 @@
+name: topo1
+
+mgmt:
+  network: bgpls-topo1-mgmt
+  # Keep separate from the default clab network's 172.20.20.0/24.
+  ipv4-subnet: 172.20.42.0/24
+  ipv6-subnet: auto
+
+topology:
+  defaults:
+    kind: frr
+    image: quay.io/frrouting/frr:containerlab-10.7.1
+    enforce-startup-config: true
+
+  groups:
+    isis_only:
+      # An explicit list disables bgpd and other unlisted protocol daemons.
+      # FRR's core services (including zebra/watchfrr) start automatically.
+      daemons:
+        - isisd
+    exporter:
+      daemons:
+        - isisd
+        - bgpd
+    consumer:
+      daemons:
+        - bgpd
+
+  nodes:
+    r2:
+      group: isis_only
+      startup-config: r2.conf
+    r3:
+      group: isis_only
+      startup-config: r3.conf
+    r4:
+      group: isis_only
+      startup-config: r4.conf
+    r5:
+      group: exporter
+      startup-config: r5.conf
+      # Defer BGP-LS activation until both zebra clients and the base config are ready.
+      binds:
+        - r5-bgpls.conf:/opt/lab/r5-bgpls.conf:ro
+      exec:
+        - >-
+          timeout 90 sh -ec 'until
+          vtysh -c "show zebra client summary" | grep -q "^isis " &&
+          vtysh -c "show zebra client summary" | grep -q "^bgp " &&
+          vtysh -c "show running-config" |
+          grep -Fq "mpls-te router-address 10.5.0.1" &&
+          vtysh -c "show running-config" |
+          grep -Fq "neighbor 192.0.2.2 remote-as 65100";
+          do sleep 1; done;
+          vtysh -f /opt/lab/r5-bgpls.conf'
+    c1:
+      group: consumer
+      startup-config: c1.conf
+
+  links:
+    # L1: independent /32 endpoints; IS-IS cost 20 in each direction.
+    - endpoints: ["r2:eth1", "r3:eth1"]
+    # L2: preferred R2-R4 path; IS-IS cost 10.
+    - endpoints: ["r2:eth2", "r4:eth1"]
+    # L3: completes the R2-R3-R4 alternate path; IS-IS cost 20.
+    - endpoints: ["r3:eth2", "r4:eth2"]
+    # L4: R5's connection to the IS-IS domain; cost 10.
+    - endpoints: ["r4:eth3", "r5:eth1"]
+    # L5: 192.0.2.0/30, sole eBGP-LS session; IS-IS disabled.
+    - endpoints: ["r5:eth2", "c1:eth1"]
